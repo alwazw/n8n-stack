@@ -1,15 +1,64 @@
-# Host Configuration Instructions for n8n-stack
+# Cross-Platform Host Configuration for n8n-stack
 
-## Updating /etc/hosts
+This guide provides instructions for configuring hostname resolution on both Windows and Linux systems to access your n8n stack.
 
-To ensure your system can resolve the hostname `n8n-stack` to the correct IP addresses, you need to update your `/etc/hosts` file.
+## Windows Configuration
+
+### Updating Hosts File
+
+1. Open Notepad as Administrator:
+   - Search for "Notepad" in the Start menu
+   - Right-click on Notepad and select "Run as administrator"
+   - Click "Yes" on the UAC prompt
+
+2. Open the hosts file:
+   - In Notepad, go to File > Open
+   - Navigate to: `C:\Windows\System32\drivers\etc\`
+   - Change the file filter from "Text Documents (*.txt)" to "All Files (*.*)"
+   - Select the file named "hosts" and click Open
+
+3. Add these lines at the end of the file:
+   ```
+   192.168.2.104 n8n-stack
+   10.10.10.104 n8n-stack
+   ```
+
+4. Save the file (File > Save)
+
+5. Test the configuration:
+   ```
+   ping n8n-stack
+   ```
+
+### Troubleshooting Windows Hostname Resolution
+
+If hostname resolution isn't working:
+
+1. Flush DNS cache:
+   ```
+   ipconfig /flushdns
+   ```
+
+2. Check if the hosts file has correct permissions:
+   - Right-click on the hosts file
+   - Select Properties
+   - Ensure it's not set to Read-only
+
+3. Try accessing by IP address directly to verify connectivity:
+   ```
+   ping 192.168.2.104
+   ```
+
+## Linux Configuration
+
+### Updating Hosts File
 
 1. Open the hosts file with sudo privileges:
    ```
    sudo nano /etc/hosts
    ```
 
-2. Add the following lines to the file:
+2. Add the following lines:
    ```
    192.168.2.104 n8n-stack
    10.10.10.104 n8n-stack
@@ -17,42 +66,53 @@ To ensure your system can resolve the hostname `n8n-stack` to the correct IP add
 
 3. Save the file and exit (Ctrl+O, Enter, Ctrl+X in nano)
 
-## Updating /etc/resolv.conf
-
-To ensure proper DNS resolution, you may need to update your `/etc/resolv.conf` file.
-
-1. Open the resolv.conf file with sudo privileges:
+4. Test the configuration:
    ```
-   sudo nano /etc/resolv.conf
+   ping n8n-stack
    ```
 
-2. Ensure it contains the following entries (keeping your existing nameservers):
+### Updating resolv.conf (if needed)
+
+On many Linux systems, `/etc/resolv.conf` is managed by systemd-resolved or other services. For permanent changes:
+
+1. If using systemd-resolved, edit the resolved.conf file:
    ```
-   nameserver 127.0.0.53
-   nameserver 1.1.1.1
-   options edns0 trust-ad
-   search home
+   sudo nano /etc/systemd/resolved.conf
    ```
 
-3. Save the file and exit (Ctrl+O, Enter, Ctrl+X in nano)
+2. Uncomment and modify the DNS line:
+   ```
+   [Resolve]
+   DNS=1.1.1.1 8.8.8.8
+   ```
 
-## Important Notes
+3. Restart the service:
+   ```
+   sudo systemctl restart systemd-resolved
+   ```
 
-- On many systems, `/etc/resolv.conf` is managed by systemd-resolved or other services and may be overwritten on reboot
-- For permanent changes, consider updating your network configuration files or using `resolvconf`
-- If using NetworkManager, you can add DNS settings through its configuration
+### Troubleshooting Linux Hostname Resolution
 
-## Testing the Configuration
+If hostname resolution isn't working:
 
-After updating the files, test that the hostname resolves correctly:
+1. Flush DNS cache:
+   ```
+   sudo systemd-resolve --flush-caches
+   ```
 
-```
-ping n8n-stack
-```
+2. Check DNS resolution:
+   ```
+   resolvectl status
+   ```
 
-You should see responses from either 192.168.2.104 or 10.10.10.104.
+3. Try accessing by IP address directly to verify connectivity:
+   ```
+   ping 192.168.2.104
+   ```
 
 ## Accessing n8n
 
-Once the hostname is properly configured, you can access n8n at:
+After configuring hostname resolution, you can access n8n at:
 - https://n8n-stack/
+
+For handling certificate warnings, see the [Certificate Trust Guide](certificate-trust-guide.md).

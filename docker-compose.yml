@@ -29,7 +29,9 @@ x-shared: &shared
     - N8N_ENCRYPTION_KEY=${ENCRYPTION_KEY}
     - N8N_SECURE_COOKIE=true
     - N8N_HOST=n8n-stack
+    - N8N_PROTOCOL=https
     - NODE_TLS_REJECT_UNAUTHORIZED=0
+    - N8N_TRUSTED_PROXIES=nginx
   links:
     - postgres
     - redis
