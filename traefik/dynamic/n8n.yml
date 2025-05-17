@@ -1,0 +1,19 @@
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/n8n-stack.crt
+      keyFile: /etc/traefik/certs/n8n-stack.key
+
+http:
+  routers:
+    n8n:
+      rule: "Host(`n8n-stack`)"
+      service: n8n
+      entryPoints:
+        - websecure
+      tls: {}
+      
+  services:
+    n8n:
+      loadBalancer:
+        servers:
+          - url: "http://n8n:5678"

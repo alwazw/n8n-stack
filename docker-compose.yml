@@ -5,6 +5,13 @@ volumes:
   n8n_storage:
   redis_storage:
   grafana_data:
+  nginx_certs:
+  nginx_conf:
+  traefik_certs:
+
+networks:
+  n8n-network:
+    driver: bridge
 
 x-shared: &shared
   restart: always
@@ -20,7 +27,9 @@ x-shared: &shared
     - QUEUE_BULL_REDIS_HOST=redis
     - QUEUE_HEALTH_CHECK_ACTIVE=true
     - N8N_ENCRYPTION_KEY=${ENCRYPTION_KEY}
-    - N8N_SECURE_COOKIE=false
+    - N8N_SECURE_COOKIE=true
+    - N8N_HOST=n8n-stack
+    - NODE_TLS_REJECT_UNAUTHORIZED=0
   links:
     - postgres
     - redis
@@ -32,6 +41,8 @@ x-shared: &shared
       condition: service_healthy
     postgres:
       condition: service_healthy
+  networks:
+    - n8n-network
 
 services:
 
@@ -51,6 +62,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - n8n-network
 
   #Redis
   redis:
@@ -69,6 +82,8 @@ services:
       retries: 10
     env_file:
       - .env
+    networks:
+      - n8n-network
 
   #Adminer
   adminer:
@@ -78,6 +93,8 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
+    networks:
+      - n8n-network
 
   #Grafana
   grafana:
@@ -89,14 +106,62 @@ services:
       - grafana_data:/var/lib/grafana
     env_file:
       - .env
+    networks:
+      - n8n-network
+
+  #Nginx
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/certs:/etc/nginx/certs
+      - nginx_conf:/etc/nginx
+    depends_on:
+      - n8n
+    networks:
+      - n8n-network
+
+  #Traefik
+  traefik:
+    image: traefik:v2.10
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "8081:8080" # Dashboard
+      - "81:80"     # HTTP
+      - "444:443"   # HTTPS
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik:/etc/traefik
+      - traefik_certs:/etc/traefik/certs
+    networks:
+      - n8n-network
+    labels:
+      - "traefik.enable=true"
 
   n8n:
     <<: *shared
     ports:
       - 5678:5678
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n-stack`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
 
   n8n-worker:
     <<: *shared
     command: worker
     depends_on:
       - n8n
+    networks:
+      - n8n-network
