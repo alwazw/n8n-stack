@@ -1,6 +1,6 @@
-# N8N Stack with Nginx, Traefik, and pgAdmin
+# N8N Stack with Nginx, Traefik, pgAdmin, and Supabase
 
-This repository contains a Docker Compose setup for n8n workflow automation platform with Nginx and Traefik for HTTPS access, and pgAdmin for PostgreSQL database management.
+This repository contains a Docker Compose setup for n8n workflow automation platform with Nginx and Traefik for HTTPS access, pgAdmin for PostgreSQL database management, and Supabase for backend services.
 
 ## Stack Components
 
@@ -15,6 +15,7 @@ The stack includes the following services:
 7. **Grafana**: Monitoring and visualization
 8. **Nginx**: Reverse proxy for HTTPS access to n8n
 9. **Traefik**: Alternative reverse proxy for future internal/external HTTPS termination
+10. **Supabase**: Open-source Firebase alternative with authentication, storage, and more
 
 ## Getting Started
 
@@ -46,6 +47,7 @@ The stack includes the following services:
    - Adminer: http://n8n-stack:8080
    - Grafana: http://n8n-stack:3000
    - Traefik Dashboard: http://n8n-stack:8081
+   - Supabase Studio: http://n8n-stack:3333
 
 5. For browser certificate warnings, see [Certificate Trust Guide](certificate-trust-guide.md)
 
@@ -58,6 +60,12 @@ For detailed instructions on using pgAdmin, see the [pgAdmin Guide](pgadmin-guid
 ### Adminer
 
 Adminer provides a simpler alternative to pgAdmin and can be accessed at http://n8n-stack:8080.
+
+## Supabase
+
+Supabase provides a complete backend solution including authentication, database, storage, and more.
+
+For detailed instructions on using Supabase, see the [Supabase Guide](supabase-guide.md).
 
 ## Configuration Overview
 
@@ -99,6 +107,7 @@ If you encounter issues:
    docker compose logs nginx
    docker compose logs n8n
    docker compose logs pgadmin
+   docker compose logs supabase-db
    ```
 
 4. For certificate issues, see [Certificate Trust Guide](certificate-trust-guide.md)
@@ -108,3 +117,4 @@ If you encounter issues:
 - The stack uses self-signed certificates for local development
 - For production use, consider using proper CA-signed certificates
 - Traefik is configured for future automatic certificate management with Let's Encrypt
+- Default credentials are shared across services for simplicity; consider changing for production

@@ -9,6 +9,8 @@ volumes:
   nginx_conf:
   traefik_certs:
   pgadmin_data:
+  supabase_pgdata:
+  supabase_storage:
 
 networks:
   n8n-network:
@@ -54,9 +56,9 @@ services:
     image: postgres:16
     restart: always
     environment:
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
-      - POSTGRES_DB
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - db_storage:/var/lib/postgresql/data
       - ./init-data.sh:/docker-entrypoint-initdb.d/init-data.sh
@@ -120,12 +122,14 @@ services:
   grafana:
     image: grafana/grafana-oss:latest
     restart: always
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
     ports:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-    env_file:
-      - .env
     networks:
       - n8n-network
 
@@ -142,6 +146,7 @@ services:
       - nginx_conf:/etc/nginx
     depends_on:
       - n8n
+      - supabase-studio
     networks:
       - n8n-network
 
@@ -185,3 +190,135 @@ services:
       - n8n
     networks:
       - n8n-network
+
+  # Supabase Services
+  supabase-db:
+    image: supabase/postgres:15.1.0.117
+    restart: always
+    environment:
+      - POSTGRES_USER=${SUPABASE_DB_USER:-${POSTGRES_USER}}
+      - POSTGRES_PASSWORD=${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}
+      - POSTGRES_DB=${SUPABASE_DB:-supabase}
+      - PGDATA=/var/lib/postgresql/data
+    volumes:
+      - supabase_pgdata:/var/lib/postgresql/data
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SUPABASE_DB_USER:-${POSTGRES_USER}} -d ${SUPABASE_DB:-supabase}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - n8n-network
+    ports:
+      - "5432:5432"
+
+  supabase-auth:
+    image: supabase/gotrue:v2.64.1
+    restart: always
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    environment:
+      - GOTRUE_API_HOST=0.0.0.0
+      - GOTRUE_API_PORT=9999
+      - API_EXTERNAL_URL=https://n8n-stack
+      - GOTRUE_DB_DRIVER=postgres
+      - GOTRUE_DB_HOST=supabase-db
+      - GOTRUE_DB_PORT=5432
+      - GOTRUE_DB_USER=${SUPABASE_DB_USER:-${POSTGRES_USER}}
+      - GOTRUE_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}
+      - GOTRUE_DB_DATABASE_URL=postgres://${SUPABASE_DB_USER:-${POSTGRES_USER}}:${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}@supabase-db:5432/${SUPABASE_DB:-supabase}?sslmode=disable
+      - GOTRUE_SITE_URL=https://n8n-stack
+      - GOTRUE_JWT_SECRET=${SUPABASE_JWT_SECRET:-${ENCRYPTION_KEY}}
+      - GOTRUE_JWT_EXP=3600
+      - GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
+      - GOTRUE_DISABLE_SIGNUP=false
+      - GOTRUE_SMTP_ADMIN_EMAIL=${SUPABASE_ADMIN_EMAIL:-admin@n8n-stack.local}
+      - GOTRUE_MAILER_AUTOCONFIRM=true
+    networks:
+      - n8n-network
+    ports:
+      - "9999:9999"
+
+  supabase-rest:
+    image: postgrest/postgrest:v10.1.2
+    restart: always
+    depends_on:
+      - supabase-db
+      - supabase-auth
+    environment:
+      - PGRST_DB_URI=postgres://${SUPABASE_DB_USER:-${POSTGRES_USER}}:${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}@supabase-db:5432/${SUPABASE_DB:-supabase}
+      - PGRST_DB_SCHEMA=public,storage
+      - PGRST_DB_ANON_ROLE=anon
+      - PGRST_JWT_SECRET=${SUPABASE_JWT_SECRET:-${ENCRYPTION_KEY}}
+      - PGRST_DB_USE_LEGACY_GUCS=false
+    networks:
+      - n8n-network
+    ports:
+      - "3001:3000"
+
+  supabase-storage:
+    image: supabase/storage-api:v0.40.4
+    restart: always
+    depends_on:
+      - supabase-db
+      - supabase-rest
+    environment:
+      - ANON_KEY=${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
+      - SERVICE_KEY=${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU}
+      - POSTGREST_URL=http://supabase-rest:3000
+      - PGRST_JWT_SECRET=${SUPABASE_JWT_SECRET:-${ENCRYPTION_KEY}}
+      - DATABASE_URL=postgres://${SUPABASE_DB_USER:-${POSTGRES_USER}}:${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}@supabase-db:5432/${SUPABASE_DB:-supabase}
+      - TENANT_ID=stub
+      - REGION=stub
+      - GLOBAL_S3_BUCKET=stub
+      - ENABLE_IMAGE_TRANSFORMATION=true
+      - FILE_SIZE_LIMIT=52428800
+      - FILE_STORAGE_BACKEND=file
+      - FILE_STORAGE_UPLOAD_TIMEOUT=30000
+      - STORAGE_BACKEND=file
+      - FILE_STORAGE_BACKEND_PATH=/var/lib/storage
+    volumes:
+      - supabase_storage:/var/lib/storage
+    networks:
+      - n8n-network
+    ports:
+      - "5000:5000"
+
+  supabase-meta:
+    image: supabase/postgres-meta:v0.66.0
+    restart: always
+    depends_on:
+      - supabase-db
+    environment:
+      - PG_META_PORT=8080
+      - PG_META_DB_HOST=supabase-db
+      - PG_META_DB_PORT=5432
+      - PG_META_DB_NAME=${SUPABASE_DB:-supabase}
+      - PG_META_DB_USER=${SUPABASE_DB_USER:-${POSTGRES_USER}}
+      - PG_META_DB_PASSWORD=${SUPABASE_DB_PASSWORD:-${POSTGRES_PASSWORD}}
+    networks:
+      - n8n-network
+    ports:
+      - "8082:8080"
+
+  supabase-studio:
+    image: supabase/studio:20230327-c67d0ee
+    restart: always
+    depends_on:
+      - supabase-db
+      - supabase-auth
+      - supabase-rest
+      - supabase-storage
+      - supabase-meta
+    environment:
+      - STUDIO_PG_META_URL=http://supabase-meta:8080
+      - SUPABASE_URL=http://n8n-stack
+      - SUPABASE_REST_URL=http://supabase-rest:3000
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU}
+    networks:
+      - n8n-network
+    ports:
+      - "3333:3000"
