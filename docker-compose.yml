@@ -8,6 +8,7 @@ volumes:
   nginx_certs:
   nginx_conf:
   traefik_certs:
+  pgadmin_data:
 
 networks:
   n8n-network:
@@ -64,6 +65,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - n8n-network
+
+  #pgAdmin
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@n8n-stack.local}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-${POSTGRES_PASSWORD}}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
     networks:
       - n8n-network
 
