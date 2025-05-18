@@ -7,56 +7,56 @@ This repository contains a comprehensive Docker Compose setup for n8n workflow a
 The stack includes the following services:
 
 ### Core Services
-1. **n8n**: The main workflow automation platform
-2. **n8n-worker**: Worker service for n8n
-3. **PostgreSQL**: Database for n8n and other services
-4. **Redis**: Queue management for n8n
+1. **n8n**: The main workflow automation platform (latest)
+2. **n8n-worker**: Worker service for n8n (latest)
+3. **PostgreSQL**: Database for n8n and other services (v16)
+4. **Redis**: Queue management for n8n (6-alpine)
 
 ### Database Management
-5. **pgAdmin**: Web-based PostgreSQL administration tool
-6. **Adminer**: Simple database management interface
+5. **pgAdmin**: Web-based PostgreSQL administration tool (latest)
+6. **Adminer**: Simple database management interface (latest)
 
 ### Backend Services
 7. **Supabase**: Open-source Firebase alternative with authentication, storage, and more
-   - Supabase PostgreSQL database
-   - Authentication service
-   - RESTful API
-   - Storage service
-   - Database metadata service
-   - Supabase Studio (web interface)
+   - Supabase PostgreSQL database (latest)
+   - Authentication service (latest)
+   - RESTful API (latest)
+   - Storage service (latest)
+   - Database metadata service (latest)
+   - Supabase Studio (latest)
 
 ### Monitoring & Observability
-8. **Prometheus**: Metrics collection and monitoring
-9. **Alertmanager**: Alert handling for Prometheus
-10. **Loki**: Log aggregation system
-11. **Promtail**: Log collector for Loki
-12. **Grafana**: Monitoring and visualization dashboard
-13. **cAdvisor**: Container resource usage and performance analysis
+8. **Prometheus**: Metrics collection and monitoring (latest)
+9. **Alertmanager**: Alert handling for Prometheus (latest)
+10. **Loki**: Log aggregation system (latest)
+11. **Promtail**: Log collector for Loki (latest)
+12. **Grafana**: Monitoring and visualization dashboard (latest)
+13. **cAdvisor**: Container resource usage and performance analysis (latest)
 
 ### Security & Secrets Management
-14. **HashiCorp Vault**: Secrets management
-15. **Keycloak**: Identity and access management
+14. **HashiCorp Vault**: Secrets management (latest)
+15. **Keycloak**: Identity and access management (latest)
 
 ### Message Queue & Data Processing
-16. **RabbitMQ**: Advanced message queuing protocol broker
-17. **Apache NiFi**: Data flow automation
-18. **Minio**: S3-compatible object storage
+16. **RabbitMQ**: Advanced message queuing protocol broker (3-management)
+17. **Apache NiFi**: Data flow automation (latest)
+18. **Minio**: S3-compatible object storage (latest)
 
 ### Development & API Management
-19. **Kong**: API gateway
-20. **Portainer**: Container management UI
+19. **Kong**: API gateway (latest)
+20. **Portainer**: Container management UI (latest)
 
 ### Backup & Disaster Recovery
-21. **Duplicati**: Automated backups
+21. **Duplicati**: Automated backups (latest)
 
 ### Frontend & Visualization
-22. **Metabase**: Business intelligence and analytics
-23. **Node-RED**: Visual workflow automation
+22. **Metabase**: Business intelligence and analytics (latest)
+23. **Node-RED**: Visual workflow automation (latest)
 
 ### Networking & Proxy
-24. **Nginx**: Reverse proxy for HTTPS access
-25. **Traefik**: Alternative reverse proxy for future internal/external HTTPS termination
-26. **Cloudflared**: Secure tunneling to expose services to the internet
+24. **Nginx**: Reverse proxy for HTTPS access (alpine)
+25. **Traefik**: Alternative reverse proxy for future internal/external HTTPS termination (v2.10)
+26. **Cloudflared**: Secure tunneling to expose services to the internet (latest)
 
 ## Getting Started
 
@@ -217,6 +217,17 @@ All services use shared credentials defined in the `.env` file:
 - Password: WaficWazzan!2
 - Encryption keys and secrets are shared where appropriate
 
+## Image Version Notes
+
+All services have been configured to use the latest stable versions of their respective Docker images. This ensures compatibility and access to the most recent features and security updates. Key version details:
+
+- **n8n**: Using the latest official image from docker.n8n.io/n8nio/n8n
+- **PostgreSQL**: Using version 16
+- **Redis**: Using 6-alpine for lightweight performance
+- **Supabase**: All components updated to latest versions
+- **Traefik**: Using v2.10
+- **RabbitMQ**: Using 3-management for the management UI
+
 ## Troubleshooting
 
 If you encounter issues:
@@ -237,6 +248,11 @@ If you encounter issues:
    ```
 
 4. For certificate issues, see [Certificate Trust Guide](certificate-trust-guide.md)
+
+5. If you encounter image pull errors, ensure you have the latest images:
+   ```
+   docker compose pull
+   ```
 
 ## Security Notes
 

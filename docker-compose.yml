@@ -34,7 +34,7 @@ networks:
 
 x-shared: &shared
   restart: always
-  image: docker.n8n.io/n8nio/n8n
+  image: docker.n8n.io/n8nio/n8n:latest
   environment:
     - DB_TYPE=postgresdb
     - DB_POSTGRESDB_HOST=postgres
@@ -125,7 +125,7 @@ services:
 
   #Adminer
   adminer:
-    image: adminer
+    image: adminer:latest
     restart: always
     ports:
       - "8080:8080"
@@ -220,7 +220,7 @@ services:
 
   # Supabase Services
   supabase-db:
-    image: supabase/postgres:15.1.0.117
+    image: supabase/postgres:latest
     restart: always
     environment:
       - POSTGRES_USER=${SUPABASE_DB_USER:-${POSTGRES_USER}}
@@ -241,7 +241,7 @@ services:
       - "5432:5432"
 
   supabase-auth:
-    image: supabase/gotrue:v2.64.1
+    image: supabase/gotrue:latest
     restart: always
     depends_on:
       supabase-db:
@@ -269,7 +269,7 @@ services:
       - "9999:9999"
 
   supabase-rest:
-    image: postgrest/postgrest:v10.1.2
+    image: postgrest/postgrest:latest
     restart: always
     depends_on:
       - supabase-db
@@ -286,7 +286,7 @@ services:
       - "3001:3000"
 
   supabase-storage:
-    image: supabase/storage-api:v0.40.4
+    image: supabase/storage-api:latest
     restart: always
     depends_on:
       - supabase-db
@@ -314,7 +314,7 @@ services:
       - "5000:5000"
 
   supabase-meta:
-    image: supabase/postgres-meta:v0.66.0
+    image: supabase/postgres-meta:latest
     restart: always
     depends_on:
       - supabase-db
@@ -331,7 +331,7 @@ services:
       - "8082:8080"
 
   supabase-studio:
-    image: supabase/studio:20230327-c67d0ee
+    image: supabase/studio:latest
     restart: always
     depends_on:
       - supabase-db
