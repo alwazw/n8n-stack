@@ -25,6 +25,8 @@ volumes:
   duplicati_data:
   metabase_data:
   node_red_data:
+  cloudflared_data:
+  rabbitmq_data:
 
 networks:
   n8n-network:
@@ -410,6 +412,28 @@ services:
     networks:
       - n8n-network
 
+  # Container Monitoring
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: always
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8085:8080"
+    networks:
+      - n8n-network
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cadvisor.rule=Host(`n8n-stack`) && PathPrefix(`/cadvisor`)"
+      - "traefik.http.routers.cadvisor.entrypoints=websecure"
+      - "traefik.http.services.cadvisor.loadbalancer.server.port=8080"
+
   # Security & Secrets Management
   vault:
     image: hashicorp/vault:latest
@@ -451,6 +475,27 @@ services:
     networks:
       - n8n-network
     command: start-dev
+
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-${POSTGRES_USER}}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-${POSTGRES_PASSWORD}}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-/}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Data Processing & Integration
   nifi:
@@ -574,3 +619,19 @@ services:
       - "1880:1880"
     networks:
       - n8n-network
+      
+  # Cloudflared for secure tunneling
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: always
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARED_TUNNEL_TOKEN:-}
+    volumes:
+      - cloudflared_data:/home/nonroot/.cloudflared
+      - ./cloudflared:/etc/cloudflared
+    command: tunnel run
+    networks:
+      - n8n-network
+    depends_on:
+      - nginx
+      - traefik

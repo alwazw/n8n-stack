@@ -1,6 +1,6 @@
 # N8N Stack with Complete Service Suite
 
-This repository contains a comprehensive Docker Compose setup for n8n workflow automation platform with a complete suite of supporting services for monitoring, security, data processing, API management, backup, and visualization.
+This repository contains a comprehensive Docker Compose setup for n8n workflow automation platform with a complete suite of supporting services for monitoring, security, data processing, API management, backup, visualization, and secure tunneling.
 
 ## Stack Components
 
@@ -31,29 +31,32 @@ The stack includes the following services:
 10. **Loki**: Log aggregation system
 11. **Promtail**: Log collector for Loki
 12. **Grafana**: Monitoring and visualization dashboard
+13. **cAdvisor**: Container resource usage and performance analysis
 
 ### Security & Secrets Management
-13. **HashiCorp Vault**: Secrets management
-14. **Keycloak**: Identity and access management
+14. **HashiCorp Vault**: Secrets management
+15. **Keycloak**: Identity and access management
 
-### Data Processing & Integration
-15. **Apache NiFi**: Data flow automation
-16. **Minio**: S3-compatible object storage
+### Message Queue & Data Processing
+16. **RabbitMQ**: Advanced message queuing protocol broker
+17. **Apache NiFi**: Data flow automation
+18. **Minio**: S3-compatible object storage
 
 ### Development & API Management
-17. **Kong**: API gateway
-18. **Portainer**: Container management UI
+19. **Kong**: API gateway
+20. **Portainer**: Container management UI
 
 ### Backup & Disaster Recovery
-19. **Duplicati**: Automated backups
+21. **Duplicati**: Automated backups
 
 ### Frontend & Visualization
-20. **Metabase**: Business intelligence and analytics
-21. **Node-RED**: Visual workflow automation
+22. **Metabase**: Business intelligence and analytics
+23. **Node-RED**: Visual workflow automation
 
 ### Networking & Proxy
-22. **Nginx**: Reverse proxy for HTTPS access
-23. **Traefik**: Alternative reverse proxy for future internal/external HTTPS termination
+24. **Nginx**: Reverse proxy for HTTPS access
+25. **Traefik**: Alternative reverse proxy for future internal/external HTTPS termination
+26. **Cloudflared**: Secure tunneling to expose services to the internet
 
 ## Getting Started
 
@@ -61,6 +64,7 @@ The stack includes the following services:
 
 - Docker and Docker Compose installed
 - Basic understanding of networking and DNS
+- Cloudflare account (for Cloudflared tunnel setup)
 
 ### Setup Instructions
 
@@ -76,15 +80,22 @@ The stack includes the following services:
 
 3. Create necessary directories for configuration files:
    ```
-   mkdir -p prometheus alertmanager loki promtail vault/config nifi/flow grafana/{provisioning,dashboards} backups source
+   mkdir -p prometheus alertmanager loki promtail vault/config nifi/flow grafana/{provisioning,dashboards} backups source cloudflared
    ```
 
-4. Start the stack:
+4. Set up Cloudflared tunnel:
+   - Log in to your Cloudflare account
+   - Create a tunnel in the Zero Trust dashboard
+   - Copy the tunnel token
+   - Update the `CLOUDFLARED_TUNNEL_TOKEN` in your `.env` file
+   - Configure your tunnel in the Cloudflare dashboard to route to your services
+
+5. Start the stack:
    ```
    docker compose up -d
    ```
 
-5. Access services:
+6. Access services:
 
    | Service | URL | Default Credentials |
    |---------|-----|---------------------|
@@ -95,6 +106,8 @@ The stack includes the following services:
    | Supabase Studio | http://n8n-stack:3333/ | Email: admin@n8n-stack.local<br>Password: WaficWazzan!2 |
    | Prometheus | http://n8n-stack:9090/ | N/A |
    | Alertmanager | http://n8n-stack:9093/ | N/A |
+   | cAdvisor | http://n8n-stack:8085/ | N/A |
+   | RabbitMQ Management | http://n8n-stack:15672/ | Username: alwazw<br>Password: WaficWazzan!2 |
    | Vault | http://n8n-stack:8200/ | Token: 8ae8234234h243294324 |
    | Keycloak | http://n8n-stack:8090/ | Username: alwazw<br>Password: WaficWazzan!2 |
    | NiFi | http://n8n-stack:8070/ | Username: alwazw<br>Password: WaficWazzan!2 |
@@ -106,7 +119,7 @@ The stack includes the following services:
    | Node-RED | http://n8n-stack:1880/ | Create on first login |
    | Traefik Dashboard | http://n8n-stack:8081/ | N/A |
 
-6. For browser certificate warnings, see [Certificate Trust Guide](certificate-trust-guide.md)
+7. For browser certificate warnings, see [Certificate Trust Guide](certificate-trust-guide.md)
 
 ## Service Documentation
 
@@ -128,18 +141,20 @@ The stack includes a complete monitoring solution:
 - **Loki**: Collects and indexes logs
 - **Promtail**: Forwards logs to Loki
 - **Grafana**: Visualizes metrics and logs
+- **cAdvisor**: Provides container resource usage and performance analysis
 
 Grafana is pre-configured to connect to Prometheus and Loki, providing dashboards for monitoring all services.
+
+### Message Queue & Data Processing
+
+- **RabbitMQ**: Advanced message broker for reliable communication between services
+- **NiFi**: Visual data flow automation for complex data processing
+- **Minio**: S3-compatible object storage for files and backups
 
 ### Security & Secrets Management
 
 - **Vault**: Securely store and manage secrets
 - **Keycloak**: Centralized authentication and authorization
-
-### Data Processing & Integration
-
-- **NiFi**: Visual data flow automation for complex data processing
-- **Minio**: S3-compatible object storage for files and backups
 
 ### Development & API Management
 
@@ -154,6 +169,25 @@ Grafana is pre-configured to connect to Prometheus and Loki, providing dashboard
 
 - **Metabase**: Business intelligence and analytics platform
 - **Node-RED**: Visual programming for event-driven applications
+
+### Cloudflared Tunnel
+
+Cloudflared provides secure tunneling to expose your services to the internet without opening ports on your firewall:
+
+1. **Setup**: 
+   - Create a tunnel in the Cloudflare Zero Trust dashboard
+   - Configure the tunnel to route to your services
+   - Add the tunnel token to your `.env` file
+
+2. **Usage**:
+   - Access your services through the Cloudflare tunnel URLs
+   - Manage your tunnel in the Cloudflare Zero Trust dashboard
+
+3. **Benefits**:
+   - No need to open ports on your firewall
+   - End-to-end encryption
+   - DDoS protection
+   - Access control through Cloudflare Zero Trust
 
 ## Configuration Overview
 
@@ -210,3 +244,4 @@ If you encounter issues:
 - For production use, consider using proper CA-signed certificates
 - Default credentials are shared across services for simplicity; consider changing for production
 - Traefik is configured for future automatic certificate management with Let's Encrypt
+- Cloudflared provides secure access to your services without exposing ports
