@@ -27,6 +27,14 @@ volumes:
   node_red_data:
   cloudflared_data:
   rabbitmq_data:
+  jaeger_data:
+  consul_data:
+  terraform_data:
+  clamav_data:
+  falco_data:
+  selenium_data:
+  postfix_data:
+  keepalived_data:
 
 networks:
   n8n-network:
@@ -635,3 +643,163 @@ services:
     depends_on:
       - nginx
       - traefik
+
+  # NEW SERVICES
+
+  # Distributed Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    restart: always
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "5775:5775/udp"   # Agent - accept zipkin.thrift over compact thrift protocol
+      - "6831:6831/udp"   # Agent - accept jaeger.thrift over compact thrift protocol
+      - "6832:6832/udp"   # Agent - accept jaeger.thrift over binary thrift protocol
+      - "5778:5778"       # Agent - serve configs
+      - "16686:16686"     # UI
+      - "14268:14268"     # Collector - accept jaeger.thrift directly from clients
+      - "14250:14250"     # Collector - accept model.proto
+      - "9411:9411"       # Collector - Zipkin compatible endpoint
+      - "4317:4317"       # OTLP gRPC
+      - "4318:4318"       # OTLP HTTP
+    volumes:
+      - jaeger_data:/badger
+    networks:
+      - n8n-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jaeger.rule=Host(`n8n-stack`) && PathPrefix(`/jaeger`)"
+      - "traefik.http.routers.jaeger.entrypoints=websecure"
+      - "traefik.http.services.jaeger.loadbalancer.server.port=16686"
+
+  # Service Discovery
+  consul:
+    image: hashicorp/consul:latest
+    restart: always
+    command: agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0
+    volumes:
+      - consul_data:/consul/data
+    ports:
+      - "8500:8500"   # UI and API
+      - "8600:8600/udp" # DNS
+    networks:
+      - n8n-network
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - CONSUL_CLIENT_INTERFACE=eth0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.consul.rule=Host(`n8n-stack`) && PathPrefix(`/consul`)"
+      - "traefik.http.routers.consul.entrypoints=websecure"
+      - "traefik.http.services.consul.loadbalancer.server.port=8500"
+
+  # Infrastructure as Code
+  terraform:
+    image: hashicorp/terraform:latest
+    restart: always
+    volumes:
+      - terraform_data:/terraform
+      - ./terraform:/workspace
+    working_dir: /workspace
+    command: sleep infinity
+    networks:
+      - n8n-network
+    environment:
+      - TF_VAR_username=${POSTGRES_USER}
+      - TF_VAR_password=${POSTGRES_PASSWORD}
+
+  # Antivirus
+  clamav:
+    image: clamav/clamav:latest
+    restart: always
+    volumes:
+      - clamav_data:/var/lib/clamav
+    ports:
+      - "3310:3310"   # ClamAV daemon
+    networks:
+      - n8n-network
+    environment:
+      - CLAMAV_NO_FRESHCLAM=false
+      - FRESHCLAM_CHECKS=24
+
+  # Security Monitoring
+  falco:
+    image: falcosecurity/falco:latest
+    restart: always
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /dev:/host/dev
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - /usr:/host/usr:ro
+      - falco_data:/etc/falco
+    networks:
+      - n8n-network
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    environment:
+      - FALCO_BPF_PROBE=
+
+  # Browser Automation
+  selenium:
+    image: selenium/standalone-chrome:latest
+    restart: always
+    shm_size: 2g
+    ports:
+      - "4444:4444"   # Selenium WebDriver
+      - "7900:7900"   # VNC viewer
+    volumes:
+      - selenium_data:/home/seluser
+    networks:
+      - n8n-network
+    environment:
+      - SE_NODE_MAX_SESSIONS=4
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+      - SE_VNC_NO_PASSWORD=1
+      - SE_SCREEN_WIDTH=1920
+      - SE_SCREEN_HEIGHT=1080
+
+  # Mail Server
+  postfix:
+    image: boky/postfix:latest
+    restart: always
+    ports:
+      - "25:25"       # SMTP
+      - "587:587"     # Submission
+    volumes:
+      - postfix_data:/var/mail
+    networks:
+      - n8n-network
+    environment:
+      - ALLOWED_SENDER_DOMAINS=n8n-stack.local
+      - RELAYHOST=
+      - POSTFIX_myhostname=n8n-stack.local
+      - POSTFIX_mynetworks=127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      - POSTFIX_smtp_tls_security_level=may
+      - POSTFIX_smtpd_tls_security_level=may
+      - POSTFIX_smtpd_tls_auth_only=no
+      - POSTFIX_smtp_sasl_auth_enable=no
+
+  # High Availability
+  keepalived:
+    image: osixia/keepalived:latest
+    restart: always
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_BROADCAST
+      - NET_RAW
+    volumes:
+      - keepalived_data:/container/service/keepalived/assets
+      - ./keepalived:/container/service/keepalived/assets/config
+    environment:
+      - KEEPALIVED_INTERFACE=eth0
+      - KEEPALIVED_VIRTUAL_IPS=#PYTHON2BASH:['192.168.2.104']
+      - KEEPALIVED_ROUTER_ID=51
+      - KEEPALIVED_PRIORITY=100
+      - KEEPALIVED_PASSWORD=WaficWazzan!2
