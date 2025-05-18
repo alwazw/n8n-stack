@@ -88,6 +88,8 @@ This repository contains a comprehensive Docker Compose stack for n8n workflow a
 | Consul | http://n8n-stack:8500/ | N/A |
 | Selenium | http://n8n-stack:4444/ | N/A |
 | Selenium VNC | http://n8n-stack:7900/ | No password |
+| ClamAV | N/A (daemon on port 3310) | N/A |
+| Postfix | N/A (SMTP on ports 25, 587) | N/A |
 
 ## Deployment Instructions
 
@@ -114,9 +116,25 @@ This repository contains a comprehensive Docker Compose stack for n8n workflow a
 
 ## Image Version Notes
 
-All services use the latest stable versions of their respective images. If you encounter image pull errors, you may need to update the image tags in the docker-compose.yml file.
+All services use the latest stable versions of their respective images. If you encounter image pull errors, try the following:
 
-For Supabase components, we use the latest tags to ensure compatibility between components.
+1. For Supabase components, we use the latest tags to ensure compatibility between components.
+2. If you encounter "manifest unknown" errors, try pulling images individually:
+   ```
+   docker pull supabase/postgres:latest
+   docker pull supabase/studio:latest
+   docker pull supabase/gotrue:latest
+   docker pull postgrest/postgrest:latest
+   docker pull supabase/storage-api:latest
+   docker pull supabase/postgres-meta:latest
+   ```
+
+3. For other services, you can specify exact version tags in docker-compose.yml if needed:
+   ```
+   image: postgres:16
+   image: redis:6-alpine
+   image: grafana/grafana-oss:9.5.2
+   ```
 
 ## Troubleshooting
 
@@ -146,26 +164,51 @@ If you encounter a "concurrent map writes" error when running `docker compose up
 
 ### Service-Specific Issues
 
+#### Supabase
+- If Supabase services fail to start, check the logs with `docker compose logs supabase-db`
+- Ensure the database is properly initialized before other Supabase services start
+- You may need to manually initialize the database schema:
+  ```
+  docker compose exec supabase-db psql -U alwazw -d supabase -c "CREATE SCHEMA IF NOT EXISTS auth;"
+  docker compose exec supabase-db psql -U alwazw -d supabase -c "CREATE SCHEMA IF NOT EXISTS storage;"
+  ```
+
 #### Keepalived
 - Requires host networking and privileged mode
 - May conflict with existing Keepalived instances on the host
 - Virtual IP must be on the same subnet as the host
+- Check logs with `docker compose logs keepalived`
 
 #### Falco
 - Requires privileged mode and kernel modules
 - May not work in all environments, especially containerized hosts
+- If you encounter kernel module errors, try:
+  ```
+  docker compose up -d falco --build-arg FALCO_BPF_PROBE=
+  ```
 
 #### ClamAV
-- Initial database download may take time
+- Initial database download may take time (10-15 minutes)
 - High memory usage during database updates
+- Check status with `docker compose exec clamav clamdscan --version`
 
 #### Selenium
 - Requires significant memory (2GB+ recommended)
 - VNC viewer available on port 7900 for debugging
+- If browser fails to start, check logs with `docker compose logs selenium`
 
 #### Consul
 - Configured for development mode (single node)
 - For production, adjust for multi-node cluster
+- Check cluster status with `docker compose exec consul consul members`
+
+#### n8n
+- If n8n fails to connect to PostgreSQL, check database connectivity:
+  ```
+  docker compose exec n8n ping postgres
+  docker compose exec n8n nc -zv postgres 5432
+  ```
+- Ensure the database is properly initialized and healthy
 
 ## Security Notes
 
@@ -179,6 +222,7 @@ If you encounter a "concurrent map writes" error when running `docker compose up
 - Regular updates are recommended for security
 - Back up volumes regularly
 - Monitor resource usage, especially for memory-intensive services
+- Check logs periodically with `docker compose logs [service]`
 
 ## License
 
