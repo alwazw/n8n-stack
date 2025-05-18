@@ -11,6 +11,20 @@ volumes:
   pgadmin_data:
   supabase_pgdata:
   supabase_storage:
+  prometheus_data:
+  loki_data:
+  vault_data:
+  vault_logs:
+  keycloak_data:
+  nifi_data:
+  nifi_logs:
+  nifi_conf:
+  minio_data:
+  kong_data:
+  portainer_data:
+  duplicati_data:
+  metabase_data:
+  node_red_data:
 
 networks:
   n8n-network:
@@ -126,10 +140,14 @@ services:
       - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/n8n-dashboard.json
     ports:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
     networks:
       - n8n-network
 
@@ -147,6 +165,13 @@ services:
     depends_on:
       - n8n
       - supabase-studio
+      - prometheus
+      - grafana
+      - portainer
+      - metabase
+      - node-red
+      - minio
+      - keycloak
     networks:
       - n8n-network
 
@@ -322,3 +347,230 @@ services:
       - n8n-network
     ports:
       - "3333:3000"
+
+  # Monitoring & Observability
+  prometheus:
+    image: prom/prometheus:latest
+    restart: always
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - n8n-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`n8n-stack`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: always
+    volumes:
+      - ./alertmanager:/etc/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    networks:
+      - n8n-network
+    depends_on:
+      - prometheus
+
+  loki:
+    image: grafana/loki:latest
+    restart: always
+    volumes:
+      - ./loki:/etc/loki
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "3100:3100"
+    networks:
+      - n8n-network
+
+  promtail:
+    image: grafana/promtail:latest
+    restart: always
+    volumes:
+      - ./promtail:/etc/promtail
+      - /var/log:/var/log
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      - loki
+    networks:
+      - n8n-network
+
+  # Security & Secrets Management
+  vault:
+    image: hashicorp/vault:latest
+    restart: always
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_TOKEN:-${ENCRYPTION_KEY}}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - ./vault/config:/vault/config
+    ports:
+      - "8200:8200"
+    networks:
+      - n8n-network
+    command: server -dev
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    restart: always
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USER:-${POSTGRES_USER}}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-${POSTGRES_PASSWORD}}
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      - KC_DB_USERNAME=${POSTGRES_USER}
+      - KC_DB_PASSWORD=${POSTGRES_PASSWORD}
+      - KC_HOSTNAME=n8n-stack
+      - KC_PROXY=edge
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    ports:
+      - "8090:8080"
+    depends_on:
+      - postgres
+    networks:
+      - n8n-network
+    command: start-dev
+
+  # Data Processing & Integration
+  nifi:
+    image: apache/nifi:latest
+    restart: always
+    environment:
+      - NIFI_WEB_HTTP_PORT=8070
+      - SINGLE_USER_CREDENTIALS_USERNAME=${NIFI_ADMIN_USER:-${POSTGRES_USER}}
+      - SINGLE_USER_CREDENTIALS_PASSWORD=${NIFI_ADMIN_PASSWORD:-${POSTGRES_PASSWORD}}
+    volumes:
+      - nifi_data:/opt/nifi/nifi-current/database_repository
+      - nifi_logs:/opt/nifi/nifi-current/logs
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - ./nifi/flow:/opt/nifi/nifi-current/flow
+    ports:
+      - "8070:8070"
+    networks:
+      - n8n-network
+
+  minio:
+    image: minio/minio:latest
+    restart: always
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-${POSTGRES_USER}}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-${POSTGRES_PASSWORD}}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - n8n-network
+    command: server /data --console-address ":9001"
+
+  # Development & API Management
+  kong:
+    image: kong:latest
+    restart: always
+    environment:
+      - KONG_DATABASE=postgres
+      - KONG_PG_HOST=postgres
+      - KONG_PG_USER=${POSTGRES_USER}
+      - KONG_PG_PASSWORD=${POSTGRES_PASSWORD}
+      - KONG_PG_DATABASE=${POSTGRES_DB}
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001, 0.0.0.0:8444 ssl
+    volumes:
+      - kong_data:/var/lib/kong
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+    networks:
+      - n8n-network
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "9443:9443"
+      - "8999:9000"
+    networks:
+      - n8n-network
+
+  # Backup & Disaster Recovery
+  duplicati:
+    image: duplicati/duplicati:latest
+    restart: always
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    volumes:
+      - duplicati_data:/data
+      - ./backups:/backups
+      - ./source:/source
+    ports:
+      - "8200:8200"
+    networks:
+      - n8n-network
+
+  # Frontend & Visualization
+  metabase:
+    image: metabase/metabase:latest
+    restart: always
+    environment:
+      - MB_DB_TYPE=postgres
+      - MB_DB_DBNAME=${POSTGRES_DB}
+      - MB_DB_PORT=5432
+      - MB_DB_USER=${POSTGRES_USER}
+      - MB_DB_PASS=${POSTGRES_PASSWORD}
+      - MB_DB_HOST=postgres
+      - JAVA_TIMEZONE=UTC
+    volumes:
+      - metabase_data:/metabase-data
+    ports:
+      - "3030:3000"
+    depends_on:
+      - postgres
+    networks:
+      - n8n-network
+
+  node-red:
+    image: nodered/node-red:latest
+    restart: always
+    environment:
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET:-${ENCRYPTION_KEY}}
+      - NODE_RED_ENABLE_PROJECTS=true
+    volumes:
+      - node_red_data:/data
+    ports:
+      - "1880:1880"
+    networks:
+      - n8n-network
