@@ -228,7 +228,7 @@ services:
 
   # Supabase Services
   supabase-db:
-    image: supabase/postgres:latest
+    image: supabase/postgres:15.8.1.047
     restart: always
     environment:
       - POSTGRES_USER=${SUPABASE_DB_USER:-${POSTGRES_USER}}
@@ -787,7 +787,7 @@ services:
 
   # High Availability
   keepalived:
-    image: osixia/keepalived:latest
+    image: osixia/keepalived:2.0.20
     restart: always
     network_mode: host
     cap_add:
@@ -798,8 +798,10 @@ services:
       - keepalived_data:/container/service/keepalived/assets
       - ./keepalived:/container/service/keepalived/assets/config
     environment:
-      - KEEPALIVED_INTERFACE=eth0
-      - KEEPALIVED_VIRTUAL_IPS=#PYTHON2BASH:['192.168.2.104']
-      - KEEPALIVED_ROUTER_ID=51
-      - KEEPALIVED_PRIORITY=100
-      - KEEPALIVED_PASSWORD=WaficWazzan!2
+      KEEPALIVED_INTERFACE: eth0
+      KEEPALIVED_VIRTUAL_IPS: "192.168.2.104"
+      KEEPALIVED_ROUTER_ID: 51
+      KEEPALIVED_PRIORITY: 100
+      KEEPALIVED_PASSWORD: WaficWazzan!2
+    networks:
+      - n8n-network

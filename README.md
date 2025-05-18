@@ -13,7 +13,7 @@ This repository contains a comprehensive Docker Compose stack for n8n workflow a
 
 ### Backend Services
 - **Supabase**: Backend-as-a-Service platform including:
-  - PostgreSQL database
+  - PostgreSQL database (version 15.8.1.047)
   - Authentication service
   - RESTful API
   - Storage service
@@ -116,12 +116,17 @@ This repository contains a comprehensive Docker Compose stack for n8n workflow a
 
 ## Image Version Notes
 
-All services use the latest stable versions of their respective images. If you encounter image pull errors, try the following:
+All services use the latest stable versions of their respective images, with the following specific versions:
 
-1. For Supabase components, we use the latest tags to ensure compatibility between components.
+- Supabase PostgreSQL: `supabase/postgres:15.8.1.047`
+- Keepalived: `osixia/keepalived:2.0.20`
+
+If you encounter image pull errors, try the following:
+
+1. For Supabase components, we use specific version tags to ensure compatibility between components.
 2. If you encounter "manifest unknown" errors, try pulling images individually:
    ```
-   docker pull supabase/postgres:latest
+   docker pull supabase/postgres:15.8.1.047
    docker pull supabase/studio:latest
    docker pull supabase/gotrue:latest
    docker pull postgrest/postgrest:latest
@@ -178,6 +183,11 @@ If you encounter a "concurrent map writes" error when running `docker compose up
 - May conflict with existing Keepalived instances on the host
 - Virtual IP must be on the same subnet as the host
 - Check logs with `docker compose logs keepalived`
+- The environment variable format has been fixed to use standard string format instead of Python list format
+- If you encounter issues, try modifying the keepalived.conf file directly:
+  ```
+  docker compose exec keepalived cat /container/service/keepalived/assets/keepalived.conf
+  ```
 
 #### Falco
 - Requires privileged mode and kernel modules
@@ -226,4 +236,4 @@ If you encounter a "concurrent map writes" error when running `docker compose up
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the LICENSE file for details
